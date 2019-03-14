@@ -43,20 +43,20 @@ public class AuthenticationService {
             return customerAuthToken;
 
         }else{
-            throw new AuthenticationFailedException("ATH-002","Password Failed");
+            throw new AuthenticationFailedException("ATH-002","Invalid Credentials");
         }
     }
 
     public String[] authenticate (final String authorization) throws AuthenticationFailedException {
         String[] decodedArray;
         byte[] decode;
-        if(!authorization.contains("Basic ")){
-            throw new AuthenticationFailedException("ATH-003","Incorrect format of decoded customer name and password");
-        }else{
+        try{
             decode =  Base64.getDecoder().decode(authorization.split("Basic ")[1]);
             String decodedText = new String(decode);
             decodedArray = decodedText.split(":");
             return decodedArray;
+        }catch(Exception e) {
+            throw new AuthenticationFailedException("ATH-003", "Incorrect format of decoded customer name and password");
         }
-    }
+        }
 }
