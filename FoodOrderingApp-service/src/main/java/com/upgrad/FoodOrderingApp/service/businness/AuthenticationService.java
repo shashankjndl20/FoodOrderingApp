@@ -4,6 +4,7 @@ import com.upgrad.FoodOrderingApp.service.dao.CustomerDao;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerAuthTokenEntity;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerEntity;
 import com.upgrad.FoodOrderingApp.service.exception.AuthenticationFailedException;
+import com.upgrad.FoodOrderingApp.service.exception.AuthorizationFailedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -24,11 +25,11 @@ public class AuthenticationService {
 
     @Transactional(propagation = Propagation.REQUIRED)
     public CustomerAuthTokenEntity authenticateCustomer (final String username, final String password) throws AuthenticationFailedException {
-        CustomerEntity customerEntity=  customerDao.getUserByEmail(username);
+        CustomerEntity customerEntity=  customerDao.getUserByContact(username);
         if(customerEntity == null){
             throw new AuthenticationFailedException("ATH-001","This contact number has not been registered!");
         }
-        final  String encryptedPassword =cryptographyProvider.encrypt(password,customerEntity.getSalt());
+        final  String encryptedPassword = cryptographyProvider.encrypt(password,customerEntity.getSalt());
         if(encryptedPassword.equals(customerEntity.getPassword())){
             JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(encryptedPassword);
             CustomerAuthTokenEntity customerAuthToken = new CustomerAuthTokenEntity();
@@ -55,8 +56,29 @@ public class AuthenticationService {
             String decodedText = new String(decode);
             decodedArray = decodedText.split(":");
             return decodedArray;
-        }catch(Exception e) {
-            throw new AuthenticationFailedException("ATH-003", "Incorrect format of decoded customer name and password");
+
+        }catch(Exception e){
+            throw new AuthenticationFailedException("ATH-003","Incorrect format of decoded customer name and password");
+
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    public CustomerAuthTokenEntity tokenAuthenticate(final String authorization) throws AuthorizationFailedException {
+        CustomerAuthTokenEntity customerAuthToken =  customerDao.getAuthToken(authorization);
+        ZonedDateTime now = ZonedDateTime.now();
+        if(customerAuthToken == null){
+            throw new AuthorizationFailedException("ATHR-001","Customer is not Logged in.");
+        }else if(customerAuthToken.getLogoutAt() != null){
+            throw new AuthorizationFailedException("ATHR-001","Customer is not Logged in.");
+
+        }else if(now.isAfter(customerAuthToken.getExpiresAt())){
+            throw new AuthorizationFailedException("ATHR-003","(Your session is expired. Log in again to access this endpoint.");
+        }else{
+
+            customerAuthToken.setLoginAt(now);
+            CustomerAuthTokenEntity updateToken =  customerDao.updateAuthToken(customerAuthToken);
+            return updateToken;
         }
+    }
 }
